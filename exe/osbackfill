@@ -1,5 +1,5 @@
 #!/usr/bin/env ruby
 
-require_relative File.expand_path('../lib/backfill.rb', __dir__)
+require_relative File.expand_path('../lib/ruby-amplify-opensearch-backfill.rb', __dir__)
 
-AmplifyOpenSearchBackfillCLI.start(ARGV)
+AmplifyOpenSearchBackfill::CLI.start(ARGV)

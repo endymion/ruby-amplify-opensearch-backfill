@@ -24,5 +24,7 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency "aws-sdk-cloudformation"
   spec.add_runtime_dependency "aws-sdk-lambda"
   spec.add_runtime_dependency "aws-sdk-opensearchservice"
-  spec.executables   = ["backfill"]
+  spec.add_runtime_dependency "aws-sdk-dynamodb"
+  spec.bindir        = 'exe'
+  spec.executables   = ["osbackfill"]
 end
