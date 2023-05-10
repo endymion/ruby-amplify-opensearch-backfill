@@ -15,11 +15,11 @@ module AmplifyOpenSearchBackfill
     def status
       context = get_context
 
-      logger.info "region: #{region}"
+      logger.info "region: #{context[:region]}"
       logger.info "model table name: #{context[:model_table_name]}"
       logger.info "model table stream ARN: #{context[:model_table_stream_arn]}"
       logger.info "streaming function ARN: #{context[:streaming_function_resource_arn]}"
-      logger.info "OpenSearch domain endpoint: #{context[:opensearch_kibana_endpoint]}"
+      logger.info "OpenSearch dashboard endpoint: #{context[:opensearch_kibana_endpoint]}"
       logger.info 'Documentation on how to access that endpoint URL: https://docs.aws.amazon.com/opensearch-service/latest/developerguide/obtain-domain-info.html'
     end
 
@@ -45,8 +45,6 @@ module AmplifyOpenSearchBackfill
         file_path
       end
     end
-
-    private
 
     def get_context
       # Get the resources for the top-level, root stack.
@@ -108,12 +106,15 @@ module AmplifyOpenSearchBackfill
         }.first[:resource_arn]
 
       {
+        region: region,
         model_table_name: model_table_name,
         model_table_stream_arn: model_table_stream_arn,
         streaming_function_resource_arn: streaming_function_resource_arn,
         opensearch_kibana_endpoint: opensearch_kibana_endpoint
       }
     end
+
+    private
 
     # Parse the amplify-meta.json file to get the current region.
     def region

@@ -1,6 +1,6 @@
 module Loggable
   def logger(reset: false)
-    if defined?(@logger) and not reset
+    if defined?(@logger) and !reset
       @logger
     else
       @logger = Logger.new($stdout)
