@@ -1,0 +1,5 @@
+#!/usr/bin/env ruby
+
+require_relative File.expand_path('../lib/backfill.rb', __dir__)
+
+AmplifyOpenSearchBackfillCLI.start(ARGV)
