@@ -24,22 +24,26 @@ module AmplifyOpenSearchBackfill
     end
 
     def find_amplify_meta_json(starting_directory = Dir.pwd)
-      current_directory = starting_directory
-
-      loop do
-        file_path = File.join(current_directory, 'amplify', 'backend', 'amplify-meta.json')
-        if File.exist?(file_path)
-          logger.debug "Found amplify-meta.json at #{file_path}"
-          return file_path
+      @amplify_meta_json_path ||= begin
+        current_directory = starting_directory
+        file_path = nil
+    
+        loop do
+          file_path = File.join(current_directory, 'amplify', 'backend', 'amplify-meta.json')
+          if File.exist?(file_path)
+            logger.debug "Found amplify-meta.json at #{file_path}"
+            break
+          end
+    
+          new_directory = File.dirname(current_directory)
+          break if new_directory == current_directory
+    
+          current_directory = new_directory
         end
-
-        new_directory = File.dirname(current_directory)
-        break if new_directory == current_directory
-
-        current_directory = new_directory
+    
+        raise 'amplify-meta.json not found in the current directory or any parent directories.' unless file_path && File.exist?(file_path)
+        file_path
       end
-
-      raise 'amplify-meta.json not found in the current directory or any parent directories.'
     end
 
     private
@@ -116,9 +120,7 @@ module AmplifyOpenSearchBackfill
       amplify_meta = File.read(
         self.find_amplify_meta_json
       )
-      region = JSON.parse(amplify_meta)['providers']['awscloudformation']['Region']
-      logger.debug "region: #{region}"
-      region
+      JSON.parse(amplify_meta)['providers']['awscloudformation']['Region']
     end
 
     # Parse the amplify-meta.json file to get the OpenSearch stack name.
@@ -126,9 +128,7 @@ module AmplifyOpenSearchBackfill
       amplify_meta = File.read(
         find_amplify_meta_json
       )
-      stack_name = JSON.parse(amplify_meta)['providers']['awscloudformation']['StackName']
-      logger.debug "stack_name: #{stack_name}"
-      stack_name
+      JSON.parse(amplify_meta)['providers']['awscloudformation']['StackName']
     end
 
     def get_stack_resources(stack_name)
