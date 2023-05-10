@@ -5,9 +5,7 @@ SimpleCov.start
 $LOAD_PATH.unshift File.expand_path('../lib', __dir__)
 require 'ruby-amplify-opensearch-backfill'
 
-require 'test-unit'
-require 'mocha/test_unit'
-require 'pry'
+require 'rspec'
 require 'byebug'
 require 'awesome_print'
 

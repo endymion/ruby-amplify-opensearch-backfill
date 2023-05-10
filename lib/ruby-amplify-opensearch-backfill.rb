@@ -1,3 +1,6 @@
+require 'awesome_print'
+require 'pry'
+
 require_relative 'ruby-amplify-opensearch-backfill/loggable'
 
 require_relative 'ruby-amplify-opensearch-backfill/introspector'

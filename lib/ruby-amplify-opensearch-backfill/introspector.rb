@@ -1,3 +1,4 @@
+require 'pathname'
 require 'aws-sdk-cloudformation'
 require 'aws-sdk-lambda'
 require 'aws-sdk-opensearchservice'
@@ -22,6 +23,25 @@ module AmplifyOpenSearchBackfill
       logger.info 'Documentation on how to access that endpoint URL: https://docs.aws.amazon.com/opensearch-service/latest/developerguide/obtain-domain-info.html'
     end
 
+    def find_amplify_meta_json(starting_directory = Dir.pwd)
+      current_directory = starting_directory
+
+      loop do
+        file_path = File.join(current_directory, 'amplify', 'backend', 'amplify-meta.json')
+        if File.exist?(file_path)
+          logger.debug "Found amplify-meta.json at #{file_path}"
+          return file_path
+        end
+
+        new_directory = File.dirname(current_directory)
+        break if new_directory == current_directory
+
+        current_directory = new_directory
+      end
+
+      raise 'amplify-meta.json not found in the current directory or any parent directories.'
+    end
+
     private
 
     def get_context
@@ -29,73 +49,59 @@ module AmplifyOpenSearchBackfill
       resources = get_stack_resources(stack_name)
 
       # Get the resources for the nested, child stack for the API.
-      api_stack_physical_id =
-        resources
-        .select do |resource|
+      api_stack_physical_id = resources.
+        select{|resource|
           resource[:resource_type].eql? 'AWS::CloudFormation::Stack'
-        end
-        .select do |resource|
-          resource[:logical_resource_id] =~ /^#{Regexp.escape(@api_name)}/i
-        end
-        .first[:physical_resource_id]
+        }.select{|resource|
+          resource[:logical_resource_id] =~ /#{Regexp.escape(@api_name)}/i
+        }.first[:physical_resource_id]
       api_resources =
         get_stack_resources(api_stack_physical_id)
 
-      model_stack_physical_id =
-        api_resources
-        .select do |resource|
+      model_stack_physical_id = api_resources.
+        select{|resource|
           resource[:resource_type].eql? 'AWS::CloudFormation::Stack'
-        end
-        .select do |resource|
+        }.select{|resource|
           resource[:logical_resource_id].downcase.eql? @model_name.downcase
-        end
-        .first[:physical_resource_id]
+        }.first[:physical_resource_id]
       model_stack_outputs =
         get_stack_outputs(model_stack_physical_id)
 
       model_table_name =
-        model_stack_outputs.select do |output|
+        model_stack_outputs.select{|output|
           output[:output_key] =~ /TableName/i
-        end.first[:output_value]
+        }.first[:output_value]
 
       model_table_stream_arn =
-        model_stack_outputs.select do |output|
+        model_stack_outputs.select{|output|
           output[:output_key] =~ /TableStreamArn$/
-        end.first[:output_value]
+        }.first[:output_value]
 
       # Get the @searchable stack.
-      searchable_stack_physical_id =
-        ticketingapi_resources
-        .select do |resource|
+      searchable_stack_physical_id = api_resources.
+        select{|resource|
           resource[:resource_type].eql? 'AWS::CloudFormation::Stack'
-        end
-        .select do |resource|
+        }.select{|resource|
           resource[:logical_resource_id].eql? 'SearchableStack'
-        end
-        .first[:physical_resource_id]
+        }.first[:physical_resource_id]
       searchable_stack_resources =
         get_stack_resources(searchable_stack_physical_id)
 
-      opensearch_kibana_endpoint =
-        searchable_stack_resources
-        .select do |resource|
+      opensearch_kibana_endpoint = searchable_stack_resources.
+        select{|resource|
           resource[:resource_type].eql? 'AWS::Elasticsearch::Domain'
-        end
-        .select do |resource|
+        }.select{|resource|
           resource[:logical_resource_id].eql? 'OpenSearchDomain'
-        end
-        .first[:kibana_url]
+        }.first[:kibana_url]
 
       streaming_function_resource_arn =
         searchable_stack_resources
-        .select do |resource|
+        .select{|resource|
           resource[:resource_type].eql? 'AWS::Lambda::Function'
-        end
-        .select do |resource|
+        }.select{|resource|
           resource[:logical_resource_id] =~
             /^OpenSearchStreamingLambdaFunction/i
-        end
-        .first[:resource_arn]
+        }.first[:resource_arn]
 
       {
         model_table_name: model_table_name,
@@ -108,17 +114,21 @@ module AmplifyOpenSearchBackfill
     # Parse the amplify-meta.json file to get the current region.
     def region
       amplify_meta = File.read(
-        File.expand_path('../../../amplify/backend/amplify-meta.json', __dir__)
+        self.find_amplify_meta_json
       )
-      JSON.parse(amplify_meta)['providers']['awscloudformation']['Region']
+      region = JSON.parse(amplify_meta)['providers']['awscloudformation']['Region']
+      logger.debug "region: #{region}"
+      region
     end
 
     # Parse the amplify-meta.json file to get the OpenSearch stack name.
     def stack_name
       amplify_meta = File.read(
-        File.expand_path('../../../amplify/backend/amplify-meta.json', __dir__)
+        find_amplify_meta_json
       )
-      JSON.parse(amplify_meta)['providers']['awscloudformation']['StackName']
+      stack_name = JSON.parse(amplify_meta)['providers']['awscloudformation']['StackName']
+      logger.debug "stack_name: #{stack_name}"
+      stack_name
     end
 
     def get_stack_resources(stack_name)
@@ -127,11 +137,13 @@ module AmplifyOpenSearchBackfill
       stack_resources = []
 
       begin
-        resp = cloudformation.describe_stack_resources({
-                                                         stack_name: stack_name
-                                                       })
+        response =
+          cloudformation.describe_stack_resources({
+            stack_name: stack_name
+          })
+        # logger.debug "resources: #{response.stack_resources.ai}}"
 
-        resp.stack_resources.each do |resource|
+        response.stack_resources.each do |resource|
           stack_resources << {
             logical_resource_id: resource.logical_resource_id,
             physical_resource_id: resource.physical_resource_id,
@@ -168,8 +180,8 @@ module AmplifyOpenSearchBackfill
 
       begin
         resp = cloudformation.describe_stacks({
-                                                stack_name: stack_name
-                                              })
+          stack_name: stack_name
+        })
 
         resp.stacks.each do |stack|
           stack.outputs.each do |output|
