@@ -6,12 +6,13 @@ require 'aws-sdk-lambda'
 
 module AmplifyOpenSearchBackfill
   class Processor
-    include Loggable
+    include AmplifyOpenSearchBackfill::Loggable
 
-    def reindex(api_name:, model_name:)
+    def reindex(api_name:, model_name:, stack_name:)
       context = AmplifyOpenSearchBackfill::Introspector.new(
         api_name: api_name,
-        model_name: model_name
+        model_name: model_name,
+        stack_name: stack_name
       ).get_context
 
       raw_backfill(
@@ -88,6 +89,11 @@ module AmplifyOpenSearchBackfill
         part_size: part_size,
         lambda_function_arn: lambda_function_arn
       ) if part_size.positive?
+    end
+
+    # Find DynamoDB items that are not in OpenSearch.
+    def unindexed
+
     end
     
     private

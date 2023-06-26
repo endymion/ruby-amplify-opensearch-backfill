@@ -5,11 +5,13 @@ require 'aws-sdk-opensearchservice'
 
 module AmplifyOpenSearchBackfill
   class Introspector
-    include Loggable
+    include AmplifyOpenSearchBackfill::Loggable
 
-    def initialize(api_name:, model_name:)
+    def initialize(api_name:, model_name:, stack_name:nil)
       @api_name = api_name
       @model_name = model_name
+      @stack_name = stack_name
+      logger.debug "stack_name: #{@stack_name}"
     end
 
     def status
@@ -116,6 +118,11 @@ module AmplifyOpenSearchBackfill
 
     private
 
+    @@credentials_warning = <<~WARNING
+      Please check to ensure that you have AWS credentials set up.
+      See https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html for more information.
+    WARNING
+
     # Parse the amplify-meta.json file to get the current region.
     def region
       amplify_meta = File.read(
@@ -126,10 +133,13 @@ module AmplifyOpenSearchBackfill
 
     # Parse the amplify-meta.json file to get the OpenSearch stack name.
     def stack_name
-      amplify_meta = File.read(
-        find_amplify_meta_json
-      )
-      JSON.parse(amplify_meta)['providers']['awscloudformation']['StackName']
+      @stack_name ||= begin
+        logger.info "Parsing #{find_amplify_meta_json} to get the OpenSearch stack name..."
+        amplify_meta = File.read(
+          find_amplify_meta_json
+        )
+        JSON.parse(amplify_meta)['providers']['awscloudformation']['StackName']
+      end
     end
 
     def get_stack_resources(stack_name)
@@ -167,8 +177,10 @@ module AmplifyOpenSearchBackfill
             end
           stack_resources.last[:kibana_url] = kibana_url unless kibana_url.nil?
         end
-      rescue Aws::CloudFormation::Errors::ServiceError => e
-        puts "Error: #{e}"
+      rescue Aws::CloudFormation::Errors::ServiceError => error
+        logger.error "Error: #{error}"
+        logger.warn @@credentials_warning
+        exit 1 # error
       end
 
       stack_resources
@@ -192,8 +204,10 @@ module AmplifyOpenSearchBackfill
             }
           end
         end
-      rescue Aws::CloudFormation::Errors::ServiceError => e
-        puts "Error: #{e}"
+      rescue Aws::CloudFormation::Errors::ServiceError => error
+        logger.error "Error: #{error}"
+        logger.warn @@credentials_warning
+        exit 1 # error
       end
 
       stack_outputs
@@ -205,8 +219,10 @@ module AmplifyOpenSearchBackfill
       begin
         resp = lambda_client.get_function({ function_name: function_name })
         resp.configuration.function_arn
-      rescue Aws::Lambda::Errors::ServiceError => e
-        puts "Error: #{e}"
+      rescue Aws::Lambda::Errors::ServiceError => error
+        logger.error "Error: #{error}"
+        logger.warn @@credentials_warning
+        exit 1 # error
       end
     end
 
@@ -217,8 +233,10 @@ module AmplifyOpenSearchBackfill
         resp = opensearch.describe_domain({ domain_name: domain_name })
         domain_endpoint = resp.domain_status.endpoint
         kibana_url = "https://#{domain_endpoint}/_plugin/kibana/"
-      rescue Aws::OpenSearchService::Errors::ServiceError => e
-        puts "Error: #{e}"
+      rescue Aws::OpenSearchService::Errors::ServiceError => error
+        logger.error "Error: #{error}"
+        logger.warn @@credentials_warning
+        exit 1 # error
       end
 
       kibana_url
